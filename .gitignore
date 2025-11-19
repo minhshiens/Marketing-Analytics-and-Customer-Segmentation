@@ -1,0 +1,19 @@
+# Bỏ qua thư mục môi trường ảo (QUAN TRỌNG)
+venv/
+env/
+
+# Bỏ qua thư mục data
+data/
+
+# Bỏ qua các file cache của Python
+__pycache__/
+*.pyc
+
+# Bỏ qua các file hệ thống và log
+.DS_Store
+*.log
+
+# Bỏ qua Spark output
+*.crc
+_SUCCESS
+*.parquet

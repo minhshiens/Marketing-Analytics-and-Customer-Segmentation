@@ -1,0 +1,6 @@
+pyspark==3.5.1
+pandas
+prefect
+prefect-shell
+jupyterlab
+psycopg2-binary
