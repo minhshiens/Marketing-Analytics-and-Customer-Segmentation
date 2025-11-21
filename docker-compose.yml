@@ -1,15 +1,15 @@
-version: "3.8"
-
 services:
-  # 1. Dịch vụ Cơ sở dữ liệu Postgres
+  # 1. Database
   postgres-db:
     container_name: postgres-db
     build:
       context: ./docker/postgres
+    env_file:
+      - .env  # Đọc file .env để lấy DB_USER, DB_PASSWORD
     environment:
-      - POSTGRES_USER=minhshiens
-      - POSTGRES_PASSWORD=minhshiens123
-      - POSTGRES_DB=bigdata_db
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
@@ -18,14 +18,14 @@ services:
       - bigdata-network
     restart: unless-stopped
 
-  # 2. Dịch vụ Spark Master (Node quản lý)
+  # 2. Spark Master
   spark-master:
     container_name: spark-master
     build:
       context: ./docker/spark
     ports:
-      - "8080:8080"  # Web UI
-      - "7077:7077"  # Cổng giao tiếp cho worker
+      - "8080:8080"
+      - "7077:7077"
     volumes:
       - ./src:/app/src
       - ./data:/app/data
@@ -34,16 +34,18 @@ services:
       - bigdata-network
     restart: unless-stopped
 
-  # 3. Dịch vụ Spark Worker (Node tính toán)
+  # 3. Spark Worker
   spark-worker:
     build:
       context: ./docker/spark
     depends_on:
       - spark-master
+    # Dùng command cho Apache Spark Image
     command: >
-      bash -c "
-        /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-      "
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    environment:
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
     volumes:
       - ./src:/app/src
       - ./data:/app/data
@@ -52,18 +54,19 @@ services:
       - bigdata-network
     restart: unless-stopped
 
-  # 4. Zookeeper (Cần cho Kafka)
+  # 4. Zookeeper
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.4.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     networks:
       - bigdata-network
 
-  # 5. Kafka Broker (Hệ thống message queue)
+  # 5. Kafka
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
     depends_on:
       - zookeeper
@@ -79,27 +82,28 @@ services:
     networks:
       - bigdata-network
 
-  # 6. Prefect Agent (Dịch vụ điều phối)
+  # 6. Prefect Agent (ĐÃ SỬA CONTEXT)
   prefect-agent:
     container_name: prefect-agent
     build:
-      context: ./docker/prefect
+      context: .                      # <--- Đứng từ thư mục gốc
+      dockerfile: ./docker/prefect/Dockerfile # <--- Chỉ đường dẫn vào Dockerfile
     volumes:
       - ./src:/app/src
-      # Cho phép Prefect giao tiếp với Docker daemon để chạy các job
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      # Thay bằng API Key và Account ID của bạn nếu dùng Prefect Cloud
-      - PREFECT_API_URL=http://127.0.0.1:4200/api
+      - PREFECT_API_URL=http://host.docker.internal:4200/api
     networks:
       - bigdata-network
     restart: unless-stopped
+    command: prefect worker start --pool 'process-pool' --type 'process'
 
-  # 7. Streamlit (Giao diện cho Real-time Dashboard)
+  # 7. Streamlit App (ĐÃ SỬA CONTEXT)
   streamlit-app:
     container_name: streamlit-app
     build:
-      context: ./docker/streamlit
+      context: .                      # <--- Đứng từ thư mục gốc (Fix lỗi Forbidden path)
+      dockerfile: ./docker/streamlit/Dockerfile # <--- Chỉ đường dẫn vào Dockerfile
     ports:
       - "8501:8501"
     volumes:
@@ -109,20 +113,7 @@ services:
     networks:
       - bigdata-network
     restart: unless-stopped
-    
-# (Tùy chọn) Dịch vụ Jupyter Lab để code và khám phá
-# jupyterlab:
-#   image: jupyter/pyspark-notebook:latest
-#   container_name: jupyterlab
-#   ports:
-#     - "8888:8888"
-#   volumes:
-#     - .:/home/jovyan/work
-#   networks:
-#     - bigdata-network
 
-
-# Định nghĩa Volumes và Networks
 volumes:
   postgres-data:
 
