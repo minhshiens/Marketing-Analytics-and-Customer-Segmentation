@@ -1,19 +1,21 @@
-# Bỏ qua thư mục môi trường ảo (QUAN TRỌNG)
+# 1. Môi trường ảo & Cache (BẮT BUỘC)
 venv/
-env/
-
-# Bỏ qua thư mục data
-data/
-
-# Bỏ qua các file cache của Python
 __pycache__/
 *.pyc
 
-# Bỏ qua các file hệ thống và log
-.DS_Store
-*.log
+# 2. Dữ liệu (File nặng)
+data/
+models/            
 
-# Bỏ qua Spark output
+# 3. File rác của Jupyter Notebook (Thấy trong hình của bạn)
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# 4. Logs và file hệ thống
+*.log
+.DS_Store
+
+# 5. Spark/Hadoop output
 *.crc
 _SUCCESS
 *.parquet
