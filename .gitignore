@@ -1,0 +1,23 @@
+# 1. Môi trường ảo & Cache (BẮT BUỘC)
+venv/
+__pycache__/
+*.pyc
+
+# 2. Dữ liệu (File nặng)
+data/
+models/            
+
+# 3. File rác của Jupyter Notebook (Thấy trong hình của bạn)
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# 4. Logs và file hệ thống
+*.log
+.DS_Store
+
+# 5. Spark/Hadoop output
+*.crc
+_SUCCESS
+*.parquet
+
+.env
