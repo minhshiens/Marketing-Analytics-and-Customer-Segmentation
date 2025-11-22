@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   # 1. Database
   postgres-db:
@@ -5,7 +7,7 @@ services:
     build:
       context: ./docker/postgres
     env_file:
-      - .env  # Đọc file .env để lấy DB_USER, DB_PASSWORD
+      - .env
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
@@ -30,9 +32,14 @@ services:
       - ./src:/app/src
       - ./data:/app/data
       - ./models:/app/models
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
     networks:
       - bigdata-network
     restart: unless-stopped
+    command: "/opt/spark/bin/spark-class org.apache.spark.deploy.master.Master"
 
   # 3. Spark Worker
   spark-worker:
@@ -40,7 +47,6 @@ services:
       context: ./docker/spark
     depends_on:
       - spark-master
-    # Dùng command cho Apache Spark Image
     command: >
       /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     environment:
@@ -82,28 +88,56 @@ services:
     networks:
       - bigdata-network
 
-  # 6. Prefect Agent (ĐÃ SỬA CONTEXT)
+  # 6. Prefect Server 
+  prefect-server:
+    container_name: prefect-server
+    build:
+      context: .
+      dockerfile: ./docker/prefect/Dockerfile
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+    env_file:
+      - .env
+    environment:
+      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-db:5432/${DB_NAME}
+      - PREFECT_LOGGING_LEVEL=DEBUG
+    depends_on:
+      - postgres-db
+    networks:
+      - bigdata-network
+    restart: unless-stopped
+
+  # 7. Prefect Agent 
   prefect-agent:
     container_name: prefect-agent
     build:
-      context: .                      # <--- Đứng từ thư mục gốc
-      dockerfile: ./docker/prefect/Dockerfile # <--- Chỉ đường dẫn vào Dockerfile
+      context: .
+      dockerfile: ./docker/prefect/Dockerfile
     volumes:
       - ./src:/app/src
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - PREFECT_API_URL=http://host.docker.internal:4200/api
+      - PREFECT_API_URL=http://prefect-server:4200/api
     networks:
       - bigdata-network
+    depends_on:
+      - prefect-server
     restart: unless-stopped
-    command: prefect worker start --pool 'process-pool' --type 'process'
+    entrypoint: ["/bin/sh", "-c"]
+    command: 
+      - |
+        echo "Waiting for Server..."
+        sleep 15
+        prefect work-pool create 'process-pool' --type process || true
+        prefect worker start --pool 'process-pool' --type 'process'
 
-  # 7. Streamlit App (ĐÃ SỬA CONTEXT)
+  # 8. Streamlit App
   streamlit-app:
     container_name: streamlit-app
     build:
-      context: .                      # <--- Đứng từ thư mục gốc (Fix lỗi Forbidden path)
-      dockerfile: ./docker/streamlit/Dockerfile # <--- Chỉ đường dẫn vào Dockerfile
+      context: .
+      dockerfile: ./docker/streamlit/Dockerfile
     ports:
       - "8501:8501"
     volumes:
