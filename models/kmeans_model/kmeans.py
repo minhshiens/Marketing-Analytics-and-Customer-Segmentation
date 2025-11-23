@@ -33,7 +33,7 @@ spark = SparkSession.builder \
 print("Spark version:", spark.version)
 
 # Load reviews data
-data = spark.read.json(r"c:\Users\Darby\Downloads\Tools_and_Home_Improvement_2.jsonl")
+data = spark.read.json(r"c:\Users\Darby\Downloads\Tools_and_Home_Improvement_3.jsonl")
 
 df = data
 
@@ -44,24 +44,6 @@ columns_to_keep = [
 ]
 df = df.select([col for col in columns_to_keep if col in df.columns])
 print("s1")
-
-from pyspark.sql.types import ArrayType, StringType, DoubleType, IntegerType
-
-bad_values = ["-", "", "null", "NULL", "NA"]
-
-for col_name in df.columns:
-    col_type = df.schema[col_name].dataType
-    
-    if isinstance(col_type, ArrayType):
-        df = df.withColumn(
-            col_name,
-            F.array_except(F.col(col_name), F.array([F.lit(v) for v in bad_values]))
-        )
-    elif isinstance(col_type, StringType):
-        df = df.withColumn(
-            col_name,
-            F.when(F.col(col_name).isin(bad_values), None).otherwise(F.col(col_name))
-        )
 
 df = df \
     .withColumn("review_length", F.length(F.col("text"))) \
@@ -167,7 +149,7 @@ scaler = StandardScaler(
     inputCol="features_raw",
     outputCol="features",
     withStd=True,
-    withMean=True
+    withMean=False
 )
 
 print("s15")
