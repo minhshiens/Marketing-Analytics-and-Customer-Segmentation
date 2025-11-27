@@ -7,7 +7,7 @@ from pyspark.sql.functions import col, avg, count
 # --- CẤU HÌNH ---
 FEATURES_PATH = "data/processed/user_features.parquet"
 SEGMENTS_PATH = "data/processed/customer_segments.parquet"
-OUTPUT_CSV_PATH = "data/processed/final_report.csv" # File này để Streamlit đọc
+OUTPUT_CSV_PATH = "data/processed/final_report.csv" 
 SUMMARY_CSV_PATH = "data/processed/segment_summary.csv"
 
 def get_spark_session():
