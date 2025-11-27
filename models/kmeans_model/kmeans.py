@@ -1,5 +1,7 @@
 import time
 
+from narwhals import col
+
 start_time = time.perf_counter()
 
 import shutil
@@ -42,26 +44,44 @@ columns_to_keep = [
     "verified_purchase", "helpful_vote", "price", 
     "rating_number", "average_rating", "main_category", "timestamp"
 ]
+
 df = df.select([col for col in columns_to_keep if col in df.columns])
 print("s1")
 
-from pyspark.sql.types import ArrayType, StringType, DoubleType, IntegerType
+# Clean numeric columns - replace malformed values with null
+df = df \
+    .withColumn("price", 
+        F.when(F.col("price").rlike("^[0-9.]+$"), F.col("price").cast("double"))
+        .otherwise(None)) \
+    .withColumn("helpful_vote",
+        F.when(F.col("helpful_vote").isNull(), 0)
+        .otherwise(F.col("helpful_vote").cast("int"))) \
+    .withColumn("rating_number",
+        F.when(F.col("rating_number").rlike("^[0-9]+$"), F.col("rating_number").cast("int"))
+        .otherwise(None)) \
+    .withColumn("average_rating",
+        F.when(F.col("average_rating").rlike("^[0-9.]+$"), F.col("average_rating").cast("double"))
+        .otherwise(None))
 
-bad_values = ["-", "", "null", "NULL", "NA"]
+# Step 2: Create binary indicator
+df = df.withColumn("has_price_listed",
+    F.when(F.col("price").rlike("^[0-9]+\\.?[0-9]*$"), 1).otherwise(0))
 
-for col_name in df.columns:
-    col_type = df.schema[col_name].dataType
-    
-    if isinstance(col_type, ArrayType):
-        df = df.withColumn(
-            col_name,
-            F.array_except(F.col(col_name), F.array([F.lit(v) for v in bad_values]))
-        )
-    elif isinstance(col_type, StringType):
-        df = df.withColumn(
-            col_name,
-            F.when(F.col(col_name).isin(bad_values), None).otherwise(F.col(col_name))
-        )
+# Step 3: For non-null prices, create buckets
+price_median = df.filter(F.col("price").isNotNull()) \
+    .selectExpr("percentile_approx(CAST(price AS DOUBLE), 0.5) as median") \
+    .collect()[0].median
+
+df = df.withColumn("price_category",
+    F.when(F.col("price").isNull(), "no_price")
+    .when(F.col("price").cast("double") < price_median * 0.5, "low")
+    .when(F.col("price").cast("double") < price_median * 1.5, "medium")
+    .otherwise("high"))
+
+# Step 4: One-hot encode
+for cat in ["no_price", "low", "medium", "high"]:
+    df = df.withColumn(f"price_cat_{cat}",
+        F.when(F.col("price_category") == cat, 1).otherwise(0))
 
 df = df \
     .withColumn("review_length", F.length(F.col("text"))) \
@@ -127,6 +147,11 @@ feature_cols = [
     "rating_deviation",
     "user_review_number",
     "is_extreme_rating",
+    "has_price_listed",
+    "price_cat_no_price",
+    "price_cat_low",
+    "price_cat_medium",
+    "price_cat_high"
 ]
 
 print("s11")
@@ -147,10 +172,6 @@ df_features.persist()
 
 print("s13")
 
-# ============================================================================
-# 8. FEATURE SCALING AND VECTORIZATION
-# ============================================================================
-
 print("\n=== STEP 6: Feature Scaling ===")
 
 # Assemble features into vector
@@ -167,7 +188,7 @@ scaler = StandardScaler(
     inputCol="features_raw",
     outputCol="features",
     withStd=True,
-    withMean=True
+    withMean=False
 )
 
 print("s15")
@@ -195,13 +216,9 @@ df_scaled.count()  # Force computation
 # Unpersist previous dataframe
 df_features.unpersist()
 
-# ============================================================================
-# 9. DETERMINE OPTIMAL K (ELBOW METHOD)
-# ============================================================================
-
 print("\n=== STEP 7: Finding Optimal K ===")
 
-k = 5
+k = 4
 evaluator = ClusteringEvaluator(
     predictionCol="prediction",
     featuresCol="features",
@@ -232,10 +249,6 @@ df_clustered.count()
 # Unpersist scaled data
 df_scaled.unpersist()
 
-# ============================================================================
-# 11. CLUSTER ANALYSIS AND PROFILING
-# ============================================================================
-
 print("\n=== STEP 9: Cluster Profiling ===")
 
 cluster_sizes = df_clustered.groupBy("cluster").count().orderBy("cluster")
@@ -258,10 +271,6 @@ cluster_profiles.show(truncate=False)
 cluster_profiles_pd = cluster_profiles.coalesce(1).toPandas()
 cluster_profiles_pd.to_csv(r"c:\Users\Darby\Downloads\Marketing-Analytics-and-Customer-Segmentation\cluster_profiles.csv", index=False)
 
-# ============================================================================
-# 12. SAMPLE REVIEWS FROM EACH CLUSTER
-# ============================================================================
-
 print("\n=== STEP 10: Sample Reviews per Cluster ===")
 
 for cluster_id in range(k):
@@ -279,10 +288,6 @@ for cluster_id in range(k):
         print(f"  Upvotes: {row['helpful_vote']}")
         print(f"  Verified: {row['verified_purchase']}")
         print(f"  Text: {row['text'] if row['text'] is not None else "[No text]"[:200]}...")
-
-# ============================================================================
-# 13. CLUSTER NAMING/INTERPRETATION
-# ============================================================================
 
 print("\n=== STEP 11: Cluster Interpretation ===")
 
@@ -324,10 +329,6 @@ cluster_interpretation.select(
     F.round("avg_upvote", 2).alias("avg_upvote"),
     (F.col("verified_pct") * 100).alias("verified_pct")
 ).show(truncate=False)
-
-# ============================================================================
-# 14. SAVE RESULTS
-# ============================================================================
 
 print("\n=== STEP 12: Saving Results ===")
 
