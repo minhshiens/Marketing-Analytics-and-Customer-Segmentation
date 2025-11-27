@@ -8,20 +8,19 @@ OUTPUT_FILE = "/app/data/ads/processed_ads_stats.csv"
 
 @task(name="Read CSV Data", log_prints=True)
 def read_data():
-    """Đọc dữ liệu từ file csv thô"""
+    
     clicks_path = os.path.join(INPUT_DIR, "clicks_train.csv")
     
     if not os.path.exists(clicks_path):
-        raise FileNotFoundError(f"❌ Không tìm thấy file tại: {clicks_path}")
+        raise FileNotFoundError(f" Không tìm thấy file tại: {clicks_path}")
         
-    print(f"📥 Đang đọc file: {clicks_path}")
-    # Đọc thử 100.000 dòng đầu nếu file quá nặng
+    print(f" Đang đọc file: {clicks_path}")
+    
     df = pd.read_csv(clicks_path, nrows=100000) 
     return df
 
 @task(name="Clean & Aggregate", log_prints=True)
 def process_data(df):
-    """Xử lý dữ liệu: Tính toán thống kê cơ bản"""
     print("⚙️ Đang xử lý dữ liệu...")
     
     # Ví dụ: Group by theo ad_id hoặc platform (nếu có cột đó)
