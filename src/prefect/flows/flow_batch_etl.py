@@ -21,7 +21,7 @@ def read_data():
 
 @task(name="Clean & Aggregate", log_prints=True)
 def process_data(df):
-    print("⚙️ Đang xử lý dữ liệu...")
+    print(" Đang xử lý dữ liệu...")
     
     
     if 'clicked' in df.columns and 'ad_id' in df.columns:
