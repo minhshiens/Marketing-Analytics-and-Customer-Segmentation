@@ -11,5 +11,5 @@ RUN pip install streamlit psycopg2-binary pandas plotly
 
 EXPOSE 8501
 
-# 3. Sửa đường dẫn CMD cho đúng với hình bạn gửi
+# 3. Sửa đường dẫn CMD để chạy file chính của Streamlit
 CMD ["streamlit", "run", "ui/streamlit_app/app.py"]
