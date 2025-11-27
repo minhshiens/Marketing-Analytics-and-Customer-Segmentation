@@ -34,4 +34,3 @@ if os.path.exists(PROCESSED_FILE):
     
 else:
     st.info("⚠️ Chưa có dữ liệu đã xử lý.")
-    st.write("👉 Hãy vào Prefect UI và chạy Flow **'Batch Ads Processing'** trước!")
