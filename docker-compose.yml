@@ -142,6 +142,7 @@ services:
       - "8501:8501"
     volumes:
       - ./src:/app/src
+      - ./data:/app/data
     depends_on:
       - postgres-db
     networks:
