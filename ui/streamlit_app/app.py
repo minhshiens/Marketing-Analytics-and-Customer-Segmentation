@@ -23,7 +23,7 @@ if os.path.exists(DATA_PATH):
     # Đảm bảo cột prediction là string để phân loại màu sắc
     df['prediction'] = df['prediction'].astype(str)
 
-    # Sidebar: Bộ lọc (nếu cần mở rộng sau này)
+    # Sidebar:
     st.sidebar.header("Cấu hình hiển thị")
     show_raw = st.sidebar.checkbox("Hiển thị dữ liệu thô", value=False)
 
@@ -32,7 +32,6 @@ if os.path.exists(DATA_PATH):
         st.dataframe(df, use_container_width=True)
 
     # --- 2. KPI TỔNG QUAN (METRICS) ---
-    # Tính toán tổng quan toàn bộ tập khách hàng
     total_users = df['num_users'].sum()
     avg_global_ctr = (df['avg_clicks'] * df['num_users']).sum() / (df['avg_ads_seen'] * df['num_users']).sum()
     
@@ -63,7 +62,7 @@ if os.path.exists(DATA_PATH):
 
         with c2:
             st.subheader("So sánh Hành vi: Xem vs Click")
-            # Chuyển đổi dữ liệu sang dạng dài (long format) để vẽ grouped bar chart
+            # Chuyển đổi dữ liệu sang dạng dài (long format) để vẽ Grouped Bar
             df_melted = df.melt(id_vars=['prediction'], 
                                 value_vars=['avg_ads_seen', 'avg_clicks'],
                                 var_name='Metric', value_name='Value')
@@ -75,7 +74,7 @@ if os.path.exists(DATA_PATH):
                                color_discrete_map={'avg_ads_seen': '#83c9ff', 'avg_clicks': '#0068c9'})
             st.plotly_chart(fig_group, use_container_width=True)
         
-        # Biểu đồ Bong bóng (Bubble Chart) thể hiện mối quan hệ giữa Xem và Click
+        # Biểu đồ Bong bóng (Bubble Chart) 
         st.subheader("Bản đồ Định vị Nhóm (Bubble Chart)")
         st.caption("Trục X: Số ads xem | Trục Y: Số click | Kích thước bóng: Số lượng khách hàng")
         fig_bubble = px.scatter(df, x="avg_ads_seen", y="avg_clicks",
@@ -85,7 +84,7 @@ if os.path.exists(DATA_PATH):
                                 title="Tương quan Xem - Click và Quy mô nhóm")
         st.plotly_chart(fig_bubble, use_container_width=True)
 
-    # --- TAB 2: RADAR CHART (CHÂN DUNG KHÁCH HÀNG) ---
+    # --- TAB 2: RADAR CHART ---
     with tab2:
         st.subheader("Đặc điểm nổi bật của từng nhóm (Chuẩn hóa)")
         st.caption("Biểu đồ này giúp bạn nhận diện nhanh 'tính cách' của nhóm (Ví dụ: Nhóm chỉ xem nhiều nhưng không click).")
@@ -124,7 +123,7 @@ if os.path.exists(DATA_PATH):
                          color_continuous_scale='Viridis',
                          title='Tỷ lệ Click (CTR) theo nhóm',
                          labels={'avg_ctr': 'CTR', 'prediction': 'Nhóm'})
-        fig_ctr.update_layout(yaxis_tickformat=".2%") 
+        fig_ctr.update_layout(yaxis_tickformat=".2%") # Định dạng trục Y thành %
         st.plotly_chart(fig_ctr, use_container_width=True)
 
         # Phân tích text
@@ -137,4 +136,3 @@ if os.path.exists(DATA_PATH):
 
 else:
     st.error(f"⚠️ Không tìm thấy file dữ liệu tại: `{DATA_PATH}`")
-    st.info("Vui lòng chạy script xử lý dữ liệu trước: `python src/batch/export_results.py`")
