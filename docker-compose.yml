@@ -1,157 +1,27 @@
-version: "3.9"
-
 services:
-  # 1. Database
-  postgres-db:
-    container_name: postgres-db
-    build:
-      context: ./docker/postgres
-    env_file:
-      - .env
-    environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - bigdata-network
-    restart: unless-stopped
-
-  # 2. Spark Master
-  spark-master:
-    container_name: spark-master
-    build:
-      context: ./docker/spark
-    ports:
-      - "8080:8080"
-      - "7077:7077"
-    volumes:
-      - ./src:/app/src
-      - ./data:/app/data
-      - ./models:/app/models
-    environment:
-      - SPARK_MASTER_HOST=spark-master
-      - SPARK_MASTER_PORT=7077
-      - SPARK_MASTER_WEBUI_PORT=8080
-    networks:
-      - bigdata-network
-    restart: unless-stopped
-    command: "/opt/spark/bin/spark-class org.apache.spark.deploy.master.Master"
-
-  # 3. Spark Worker
-  spark-worker:
-    build:
-      context: ./docker/spark
-    depends_on:
-      - spark-master
-    command: >
-      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    environment:
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
-    volumes:
-      - ./src:/app/src
-      - ./data:/app/data
-      - ./models:/app/models
-    networks:
-      - bigdata-network
-    restart: unless-stopped
-
-  # 4. Zookeeper
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - bigdata-network
-
-  # 5. Kafka
   kafka:
-    image: confluentinc/cp-kafka:7.4.0
+    image: apache/kafka:latest
     container_name: kafka
-    depends_on:
-      - zookeeper
     ports:
       - "9092:9092"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # KRaft settings
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:19092,CONTROLLER://kafka:9093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    networks:
-      - bigdata-network
-
-  # 6. Prefect Server 
-  prefect-server:
-    container_name: prefect-server
-    build:
-      context: .
-      dockerfile: ./docker/prefect/Dockerfile
-    command: prefect server start --host 0.0.0.0
-    ports:
-      - "4200:4200"
-    env_file:
-      - .env
-    environment:
-      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-db:5432/${DB_NAME}
-      - PREFECT_LOGGING_LEVEL=DEBUG
-    depends_on:
-      - postgres-db
-    networks:
-      - bigdata-network
-    restart: unless-stopped
-
-  # 7. Prefect Agent 
-  prefect-agent:
-    container_name: prefect-agent
-    build:
-      context: .
-      dockerfile: ./docker/prefect/Dockerfile
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     volumes:
-      - ./src:/app/src
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - PREFECT_API_URL=http://prefect-server:4200/api
-    networks:
-      - bigdata-network
-    depends_on:
-      - prefect-server
-    restart: unless-stopped
-    entrypoint: ["/bin/sh", "-c"]
-    command: 
-      - |
-        echo "Waiting for Server..."
-        sleep 15
-        prefect work-pool create 'process-pool' --type process || true
-        prefect worker start --pool 'process-pool' --type 'process'
-
-  # 8. Streamlit App
-  streamlit-app:
-    container_name: streamlit-app
-    build:
-      context: .
-      dockerfile: ./docker/streamlit/Dockerfile
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./src:/app/src
-      - ./data:/app/data
-    depends_on:
-      - postgres-db
-    networks:
-      - bigdata-network
-    restart: unless-stopped
+      - kafka-data:/var/lib/kafka/data
 
 volumes:
-  postgres-data:
-
-networks:
-  bigdata-network:
-    driver: bridge
+  kafka-data:
+    driver: local

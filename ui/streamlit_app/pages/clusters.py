@@ -64,10 +64,6 @@ def show():
 		if not profile_avg.empty:
 			st.write(f"Profile average rating: **{profile_avg.iloc[0]:.2f}**")
 
-	if cols_to_show:
-		st.subheader("Rating distribution")
-		st.bar_chart(filtered[cols_to_show].value_counts().sort_index())
-
 	st.subheader("Sample reviews")
 	# show a few sample texts with user and rating
 	sample_n = st.slider("Number of sample reviews to show", min_value=5, max_value=50, value=10)
